@@ -131,19 +131,33 @@ class RssFeedPlugin extends phplistPlugin
         );
     }
 
+    /**
+     * Generate the content to replace the RSS placeholder in the campaign.
+     * Apply the RSS template to each feed item.
+     * Prepend a table of contents if configured to do so.
+     *
+     * @param array  $items          feed items
+     * @param int    $order          whether to list feed items in ascending or descending date order
+     * @param string $customTemplate custom RSS template for the campaign
+     */
     private function generateItemHtml(array $items, $order, $customTemplate)
     {
         $htmltemplate = trim($customTemplate) === ''
             ? getConfig('rss_htmltemplate')
             : $customTemplate;
+        $tocItemTemplate = <<<END
+<li><a href="#item_%d">%s</a></li>
+END;
         $html = '';
+        $tocItems = '';
 
         if ($order == self::LATEST_FIRST) {
             $items = array_reverse($items);
         }
 
-        foreach ($items as $item) {
+        foreach ($items as $i => $item) {
             $d = new DateTime($item['published']);
+            $html .= sprintf('<a name="item_%d"></a>', $i);
             $html .= $this->replaceProperties(
                 $htmltemplate,
                 array(
@@ -151,6 +165,12 @@ class RssFeedPlugin extends phplistPlugin
                     'title' => htmlspecialchars($item['title']),
                 ) + $item
             );
+            $tocItems .= sprintf($tocItemTemplate, $i, htmlspecialchars($item['title']));
+        }
+        $toc = sprintf('<ul>%s</ul>', $tocItems);
+
+        if (getConfig('rss_include_toc')) {
+            $html = $toc . $html;
         }
 
         return $html;
@@ -289,6 +309,13 @@ class RssFeedPlugin extends phplistPlugin
                 'description' => s('Use the item summary content, the description or summary element, instead of the content element'),
                 'type' => 'boolean',
                 'value' => true,
+                'allowempty' => true,
+                'category' => 'RSS',
+            ),
+            'rss_include_toc' => array(
+                'description' => s('Include a table of contents listing each feed item'),
+                'type' => 'boolean',
+                'value' => false,
                 'allowempty' => true,
                 'category' => 'RSS',
             ),
